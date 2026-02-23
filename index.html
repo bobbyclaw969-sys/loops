@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Loop Control | Autonomous Tasks</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--p:#10b981;--p2:#34d399;--bg:#0f172a;--b2:#1e293b;--b3:#334155;--bd:#475569;--t:#f8fafc;--t2:#94a3b8;--d:#ef4444;--o:#f59e0b}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;padding:1.5rem}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem}
+        h1{font-size:1.8rem;font-family:'JetBrains Mono',monospace}
+        .status{display:flex;align-items:center;gap:0.5rem;font-size:0.9rem;color:var(--p)}
+        .dot{width:10px;height:10px;background:var(--p);border-radius:50%;animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+        .card{background:var(--b2);border:1px solid var(--bd);border-radius:12px;padding:1.2rem}
+        .card h3{font-size:1rem;margin-bottom:1rem;color:var(--p);display:flex;justify-content:space-between}
+        .task{background:var(--b3);padding:0.8rem;border-radius:6px;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center}
+        .task .name{font-family:'JetBrains Mono',monospace;font-size:0.9rem}
+        .task.done{opacity:0.5}
+        .task .check{width:18px;height:18px;border:2px solid var(--bd);border-radius:4px;cursor:pointer}
+        .task .check.checked{background:var(--p);border-color:var(--p)}
+        .log{font-family:'JetBrains Mono',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto}
+        .log .entry{padding:0.4rem 0;border-bottom:1px solid var(--bd)}
+        .log .time{color:var(--t2);margin-right:0.5rem}
+        .log .success{color:var(--p)}
+        .log .fail{color:var(--d)}
+        .log .blocked{color:var(--o)}
+        .btn{padding:0.5rem 1rem;background:var(--p);color:#000;border:0;border-radius:6px;font-weight:600;cursor:pointer}
+        .btn:hover{background:var(--p2)}
+        .btn-outline{background:transparent;border:1px solid var(--bd);color:var(--t)}
+        .info{font-size:0.85rem;color:var(--t2)}
+        .cycle{background:var(--b3);padding:0.5rem;border-radius:6px;margin-bottom:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.8rem}
+        @media(max-width:768px){.grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ Loop Control</h1>
+        <div class="status"><div class="dot"></div> Running</div>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <h3>Task Queue <button class="btn" onclick="runLoop()">▶ Run Now</button></h3>
+            <div id="task-list"></div>
+        </div>
+        
+        <div class="card">
+            <h3>Results Log</h3>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-top:1.5rem">
+        <h3>📋 Context <button class="btn btn-outline" onclick="editContext()">Edit</button></h3>
+        <pre class="log" id="context"></pre>
+    </div>
+    
+    <div class="card" style="margin-top:1.5rem">
+        <h3>⚙️ Cycle History</h3>
+        <div id="cycles"></div>
+    </div>
+
+<script>
+var tasks = [
+    {id:1,name:'scrape_permits_SF',desc:'Run SF permit scraper',done:false,priority:'high'},
+    {id:2,name:'score_leads',desc:'Score leads in Project Phoenix',done:false,priority:'high'},
+    {id:3,name:'send_outreach',desc:'Send pending SMS/calls',done:false,priority:'high'},
+    {id:4,name:'generate_content',desc:'Run ContentClaw',done:false,priority:'medium'},
+    {id:5,name:'check_weather',desc:'Check for storm alerts',done:false,priority:'medium'},
+    {id:6,name:'update_dashboard',desc:'Refresh LocalFlows stats',done:false,priority:'low'},
+    {id:7,name:'research_crypto',desc:'Update CryptoIntel',done:false,priority:'low'},
+    {id:8,name:'backup_data',desc:'Backup all localStorage',done:true,priority:'low'}
+];
+
+var log = [
+    {time:'08:00',type:'success',msg:'Built LocalFlows dashboard'},
+    {time:'08:15',type:'success',msg:'Updated PROJECTS.md'},
+    {time:'08:30',type:'success',msg:'Created ContentClaw'},
+    {time:'08:45',type:'success',msg:'Lead scoring complete'},
+    {time:'09:00',type:'blocked',msg:'Gmail outreach: Waiting for app password'}
+];
+
+var context = `# Context File
+
+## Our Stack
+- Frontend: Static HTML/JS (GitHub Pages)
+- Backend: Conway VM (Python, Node.js)
+- Storage: localStorage for web apps
+- APIs: SF Permit API, Open-Meteo Weather
+
+## Known Pitfalls
+- GitHub Pages takes 30-60s to deploy after push
+- localStorage data is browser-specific
+- Twilio needs app password (not regular Gmail)
+- Conway VM needs Medium plan for public ports
+
+## Active Projects
+- LocalFlows: https://bobbyclaw969-sys.github.io/local-workflows/
+- ContentClaw: https://bobbyclaw969-sys.github.io/content-machine/
+- Project Phoenix: https://bobbyclaw969-sys.github.io/lead-scoring/`;
+
+var cycles = [
+    {time:'09:00',task:'scrape_permits_SF',status:'success',duration:'2.3s'},
+    {time:'08:45',task:'score_leads',status:'success',duration:'1.8s'},
+    {time:'08:30',task:'generate_content',status:'success',duration:'5.2s'},
+    {time:'08:15',task:'update_dashboard',status:'success',duration:'0.8s'},
+    {time:'08:00',task:'backup_data',status:'success',duration:'3.1s'}
+];
+
+function render(){
+    var pending = tasks.filter(t=>!t.done);
+    var completed = tasks.filter(t=>t.done);
+    
+    document.getElementById('task-list').innerHTML = 
+        '<div style="margin-bottom:1rem;color:var(--t2);font-size:0.85rem">'+pending.length+' pending, '+completed.length+' done</div>' +
+        tasks.map(t=>'<div class="task '+(t.done?'done':'')+'"><div><div class="name">'+t.name+'</div><div style="font-size:0.75rem;color:var(--t2)">'+t.desc+'</div></div><div class="check '+(t.done?'checked':'')+'" onclick="toggle('+t.id+')"></div></div>').join('');
+    
+    document.getElementById('log').innerHTML = log.map(l=>'<div class="entry"><span class="time">'+l.time+'</span><span class="'+l.type+'">'+l.msg+'</span></div>').join('');
+    
+    document.getElementById('context').textContent = context;
+    
+    document.getElementById('cycles').innerHTML = cycles.map(c=>'<div class="cycle"><span style="color:var(--t2)">'+c.time+'</span> | '+c.task+' | <span style="color:'+(c.status==='success'?'var(--p)':'var(--d)')+'">'+c.status+'</span> | '+c.duration+'</div>').join('');
+}
+
+function toggle(id){
+    var t = tasks.find(x=>x.id===id);
+    if(t)t.done = !t.done;
+    render();
+}
+
+function runLoop(){
+    var task = tasks.find(t=>!t.done);
+    if(task){
+        log.unshift({time:new Date().toLocaleTimeString().slice(0,5),type:'success',msg:'Running: '+task.name});
+        task.done = true;
+        cycles.unshift({time:new Date().toLocaleTimeString().slice(0,5),task:task.name,status:'running',duration:'...'});
+        render();
+        setTimeout(function(){
+            var c = cycles[0];
+            c.status = 'success';
+            c.duration = (Math.random()*5).toFixed(1)+'s';
+            log.unshift({time:new Date().toLocaleTimeString().slice(0,5),type:'success',msg:'Completed: '+task.name});
+            render();
+        },1000);
+    }else{
+        alert('No pending tasks!');
+    }
+}
+
+function editContext(){
+    var newContext = prompt('Edit context:',context);
+    if(newContext)context = newContext;
+    render();
+}
+
+render();
+</script>
+</body>
+</html>
